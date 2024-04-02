@@ -30,13 +30,17 @@ class PIInfoPage:
         self.grid_col = grid[1]
         self.grid_row = grid[0]
 
+
         # Initialize grid with proposed size
         self.grid = [[None for i in range(self.grid_col)] for j in range(self.grid_row)]
 
-        self.gap = gap
+        self.gap = gap # Width gap between each information in a row
 
         self.display_width = display_size[0]
         self.display_height = display_size[1]
+        
+        self.col_size = self.display_width // self.grid_col # The size in pixels of each information
+        print(f"{self.col_size=}")  
 
         self.infos = info_list
         self.d = draw
@@ -46,7 +50,7 @@ class PIInfoPage:
             x_idx = i // self.grid_col 
             y_idx = i % self.grid_col
             self.grid[x_idx][y_idx] = info
-        print(self.grid)
+
         self.last_drawn_info = None # Used to help the calculation of the position of the next info to draw
 
     def draw(self):
@@ -56,7 +60,9 @@ class PIInfoPage:
                 if self.grid[i][j] is not None:
                     info = self.grid[i][j].fetch()
                     textwidth = self._textwidth(self.last_drawn_info) + self.gap if self.last_drawn_info is not None else 0
-                    self._writetext(((j * textwidth), i * 10), info)
+                    # Draw the next info at point <textwidh of last info> + gap if there is space. Otherwise, draw at the start of the next grid space
+                    totalgap  = max(textwidth, self.col_size) 
+                    self._writetext(((j * totalgap), i * PIInfoPage.FONT.size), info)
                     self.last_drawn_info = info
 
     

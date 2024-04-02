@@ -19,9 +19,11 @@ class PIInfo:
         try:
             self.unparsed_info = subprocess.check_output(self.bash_cmd, shell=True).decode("utf-8")
             self.data = self.parse(self.unparsed_info)
+            print(self.data)
             self.info = self.display_string.format(self.data) ## TODO: make this better for stuff with more than 1 data element
             return str(self.info)
-        except Exception: ## Unexpected stuff might happen from the parameters <parse_function> or <display_format_string>
+        except Exception as e: ## Unexpected stuff might happen from the parameters <parse_function> or <display_format_string>
+            print(e)
             return str("Error displaying {}".format(self.info_name))
     
     def parse(self, unparsed_info: str) -> str:

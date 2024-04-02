@@ -6,25 +6,31 @@ from PIL import Image, ImageDraw, ImageFont
 import adafruit_ssd1306
 import time
 
+
+
 from PIInfoPage import PIInfoPage
 from PIInfo import PIInfo
 
 
-# Create the I2C interface.
-i2c = busio.I2C(SCL, SDA)
-display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c, addr=0x3C)
-width = display.width
-height = display.height
-image = Image.new("1", (width, height))
-display.fill(0)
-display.show()
+def setup_oled():
+    # Create the I2C interface.
+    i2c = busio.I2C(SCL, SDA)
+    display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c, addr=0x3C)
+
+    image = Image.new("1", (display.width, display.height))
+
+    display.fill(0)
+    display.show()
+
+    draw = ImageDraw.Draw(image)
+
+    return display, image, draw
 
 previous_tx_kbytes = 0
 previous_rx_kbytes = 0
 ITERATION_TIME = 60
 
 # Get drawing object to draw on image.
-draw = ImageDraw.Draw(image)
 
 def parse_ip(unparsed_data: str):
     ip = unparsed_data.split(" ")
@@ -34,6 +40,11 @@ def parse_ip(unparsed_data: str):
 def parse_uptime(unparsed_data: str):
     load = unparsed_data.split(",")
     return load[0][load[0].find("up")+3:].strip()
+
+def parse_cpuload(unparsed_data: str):
+    load = unparsed_data[unparsed_data.find("average:")+9:].replace("\n", "").split(",")
+    return str(float(load[0]) * 100)
+
 
 
 def parse_temperature(unparsed_data: str):
@@ -46,7 +57,7 @@ def parse_tcp_connections(unparsed_data: str):
     local_address_idx = 3
     foreign_address_idx = 4
     pid_program_idx = 8
-
+    print(unparsed_data)
     s = ""
     lines = unparsed_data.split("\n")
     for l in lines:
@@ -59,10 +70,9 @@ def parse_tcp_connections(unparsed_data: str):
             pass
         ## For now, Ignore local 127.0.0.1 stuff
         if '127.0.0.1' not in local_address and '127.0.0.1' not in foreign_address:
-            tcp_connection = {"ip": local_address, "dest": foreign_address, "prog": program}
-            #s += local_address + "\n" + foreign_address + " -> " + program + "\n\n" 
-        tcp_connections.append(tcp_connection)
-        
+            #tcp_connection = {"ip": local_address, "dest": foreign_address, "prog": program}
+            tcp_connection = "{}  {}  {}".format(local_address, foreign_address, program)
+            tcp_connections.append(tcp_connection)
     return tcp_connections
 
 
@@ -93,42 +103,23 @@ def parse_eth_interface(unparsed_data: str) -> str:
 
 
 if __name__ == "__main__":
-    pi_info_list = [
-        PIInfo("IPv4", "hostname -I", parse_ip, "{}"),
-                   PIInfo("Temp", "vcgencmd measure_temp", parse_temperature),
-                   PIInfo("Up", "top -bn1 | grep load", parse_uptime),
-                   PIInfo("Up", "top -bn1 | grep load", parse_uptime),
-                   PIInfo("Up", "top -bn1 | grep load", parse_uptime),
-                   #PIInfo("TCP", "sudo netstat -npe | grep ESTABLISHED", parse_tcp_connections),
-                   #PIInfo("end0", "ip -s  link show dev eth0", parse_eth_interface, lambda d: "rx: {}kb/s tx: {}kb/s".format(d["current_rx"], d["current_tx"])),
+
+    display, image, draw = setup_oled()
+
+    pi_info_list = [PIInfo("IPv4", "hostname -I", parse_ip, "IP: {}"),
+                    PIInfo("Temp", "vcgencmd measure_temp", parse_temperature),
+                    PIInfo("Up", "top -bn1 | grep load", parse_uptime),
+                    PIInfo("Cpu Load", "top -bn1 | grep load", parse_cpuload, "CPU: {}%"),
+                    #PIInfo("TCP", "sudo netstat -npe | grep ESTABLISHED", parse_tcp_connections, "{}\n"),
+                    #PIInfo("end0", "ip -s  link show dev eth0", parse_eth_interface, lambda d: "rx: {}kb/s tx: {}kb/s".format(d["current_rx"], d["current_tx"])),
                    ]
     
     oled = PIInfoPage(pi_info_list, draw, (display.width, display.height), (3,2))
-    
-    screen = 0
-    total_screens = 3
+
     while True:
-                # Clear current screen
-        #draw.rectangle((0, 0, display.width, display.height * 2), outline=0, fill=0)
-        #for pi_info in pi_info_list:
-        #    pi_info.fetch()
-            # Drawing could also take place here if we wanted to draw everything line by line, for example. TODO: Come up with a solution to fill all space automatically
-
-        # For now, simply proceed with hardcoded drawing
-        #if screen == 0:
-            #draw.text((0, 1),  pi_info_list[0].fetch(), font=font, fill=255)
-        #    draw.text((0, 11), pi_info_list[1].fetch(), font=font, fill=255)
-        #    draw.text((0, 22), pi_info_list[2].fetch(), font=font, fill=255)
-        #elif screen == 1:
-        #    draw.text((0, 1), pi_info_list[3].fetch(), font=font, fill=255)
-        #elif screen == 2:
-        #    draw.text((0, 1), pi_info_list[4].fetch(), font=font, fill=255)
-
-
         oled.draw()
 
         display.image(image)
         display.show()
         
-        ##screen = (screen + 1) % total_screens ## Roll screen
         time.sleep(ITERATION_TIME)
